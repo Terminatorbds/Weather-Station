@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-station
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: central-station
+  template:
+    metadata:
+      labels:
+        app: central-station
+    spec:
+      initContainers:
+        - name: wait-for-topics
+          image: confluentinc/cp-kafka:7.6.0
+          command: ["/bin/bash", "-c",
+            "until kafka-topics --list --bootstrap-server kafka-svc:9092 2>/dev/null | grep -q weather-readings; do echo 'waiting for topics...'; sleep 5; done && echo 'Topics ready'"]
+      containers:
+        - name: central-station
+          image: central-station:1.0
+          imagePullPolicy: Never
+          env:
+            - name: BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: BOOTSTRAP_SERVERS
+            - name: DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: DB_URL
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: DB_PASS

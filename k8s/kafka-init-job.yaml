@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-init
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-kafka
+          image: confluentinc/cp-kafka:7.6.0
+          command: ["/bin/bash", "-c",
+            "until kafka-topics --list --bootstrap-server kafka-svc:9092; do echo waiting for kafka; sleep 5; done"]
+      containers:
+        - name: create-topics
+          image: confluentinc/cp-kafka:7.6.0
+          command: ["/bin/bash", "-c",
+            "kafka-topics --create --if-not-exists --topic weather-readings --bootstrap-server kafka-svc:9092 --partitions 3 --replication-factor 1 &&
+             kafka-topics --create --if-not-exists --topic rain-alerts --bootstrap-server kafka-svc:9092 --partitions 1 --replication-factor 1 &&
+             echo 'Topics created successfully'"]

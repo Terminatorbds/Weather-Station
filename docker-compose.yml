@@ -1,0 +1,221 @@
+services:
+
+  # ─── Kafka (Confluent KRaft mode, no Zookeeper) ───────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    networks: [weather-net]
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--list", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 40s
+
+  # ─── Topic creator (one-shot) ─────────────────────────────────────────────────
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c",
+      "kafka-topics --create --if-not-exists --topic weather-readings --bootstrap-server kafka:9092 --partitions 3 --replication-factor 1 &&
+       kafka-topics --create --if-not-exists --topic rain-alerts       --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 &&
+       echo 'Topics created'"
+    ]
+    networks: [weather-net]
+    restart: "no"
+
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB:       weather_db
+      POSTGRES_USER:     weather_user
+      POSTGRES_PASSWORD: weather_pass
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks: [weather-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weather_user -d weather_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── Weather Stations 1-10 ───────────────────────────────────────────────────
+  station-1:
+    build: ./weather-station
+    container_name: station-1
+    environment:
+      STATION_ID: "1"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-2:
+    build: ./weather-station
+    container_name: station-2
+    environment:
+      STATION_ID: "2"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-3:
+    build: ./weather-station
+    container_name: station-3
+    environment:
+      STATION_ID: "3"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-4:
+    build: ./weather-station
+    container_name: station-4
+    environment:
+      STATION_ID: "4"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-5:
+    build: ./weather-station
+    container_name: station-5
+    environment:
+      STATION_ID: "5"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-6:
+    build: ./weather-station
+    container_name: station-6
+    environment:
+      STATION_ID: "6"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-7:
+    build: ./weather-station
+    container_name: station-7
+    environment:
+      STATION_ID: "7"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-8:
+    build: ./weather-station
+    container_name: station-8
+    environment:
+      STATION_ID: "8"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-9:
+    build: ./weather-station
+    container_name: station-9
+    environment:
+      STATION_ID: "9"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  station-10:
+    build: ./weather-station
+    container_name: station-10
+    environment:
+      STATION_ID: "10"
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  # ─── Kafka Stream Processor ───────────────────────────────────────────────────
+  kafka-processor:
+    build: ./kafka-processor
+    container_name: kafka-processor
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks: [weather-net]
+    restart: on-failure
+
+  # ─── Central Station ──────────────────────────────────────────────────────────
+  central-station:
+    build: ./central-station
+    container_name: central-station
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      DB_URL:  jdbc:postgresql://postgres:5432/weather_db
+      DB_USER: weather_user
+      DB_PASS: weather_pass
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks: [weather-net]
+    restart: on-failure
+
+volumes:
+  pg-data:
+
+networks:
+  weather-net:
+    driver: bridge

@@ -1,0 +1,38 @@
+# StatefulSet gives each pod a stable ordinal (0-9) used as STATION_ID
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: weather-station
+spec:
+  replicas: 10
+  serviceName: weather-station
+  selector:
+    matchLabels:
+      app: weather-station
+  template:
+    metadata:
+      labels:
+        app: weather-station
+    spec:
+      initContainers:
+        - name: wait-for-topics
+          image: confluentinc/cp-kafka:7.6.0
+          command: ["/bin/bash", "-c",
+            "until kafka-topics --list --bootstrap-server kafka-svc:9092 2>/dev/null | grep -q weather-readings; do echo 'waiting for topics...'; sleep 5; done && echo 'Topics ready'"]
+      containers:
+        - name: weather-station
+          image: weather-station:1.0
+          imagePullPolicy: Never
+          # Override entrypoint to extract ordinal index from pod name (weather-station-0 -> STATION_ID=1)
+          command: ["/bin/sh", "-c"]
+          args: ["STATION_ID=$(( $(echo $POD_NAME | sed 's/.*-//') + 1 )) && export STATION_ID && exec java -jar app.jar"]
+          env:
+            - name: BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: weather-config
+                  key: BOOTSTRAP_SERVERS
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
